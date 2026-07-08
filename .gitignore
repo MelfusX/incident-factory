@@ -1,0 +1,25 @@
+# Local planning, run logs, scratch — never published
+.local/
+
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+
+# Web (React + Vite)
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Env / secrets
+.env
+*.env.local
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Generated SPA assets served by the API
+src/IncidentFactory.Api/wwwroot/
+
