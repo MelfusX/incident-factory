@@ -23,5 +23,7 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080 \
     IC_BASE_URL=http://host.docker.internal:5198
 EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -q -O /dev/null http://localhost:8080/health || exit 1
 COPY --from=api-build /app/publish ./
 ENTRYPOINT ["dotnet", "IncidentFactory.Api.dll"]
