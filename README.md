@@ -96,6 +96,10 @@ OpenTelemetry export is local-safe and opt-in:
 
 Phase 2 remains later: SDK -> OTLP exporter -> collector -> bridge -> IncidentCompass HTTP ingest. The bridge is still required because IC does not receive OTLP directly.
 
+Report lookup is intentionally HTTP-only. After a scenario delivery, the factory keeps `lastDelivery.faultId`; the UI's **Check report** action calls the factory API, which reads `GET {IC_BASE_URL}/api/v1/faults/{faultId}/ledger`, finds the newest `ReportPublished` event with `payloadRef=report:<guid>`, then reads `GET {IC_BASE_URL}/api/v1/triage-reports/{reportId}`. If no report event exists yet, the factory returns `notReady` so the demo can show that IncidentCompass is still running asynchronously. The factory does not read the IncidentCompass database.
+
+The report viewer is scoped to the currently delivered scenario fault. A broad "all reports" view is deferred: the local IncidentCompass API mapping exposes `GET /api/v1/faults/{id}`, `GET /api/v1/faults/{id}/ledger`, and `GET /api/v1/triage-reports/{id}`, but no report list endpoint. Factory should add an all-reports page only after IncidentCompass exposes a suitable HTTP read API; it must not list reports by querying IncidentCompass Postgres directly.
+
 MVP endpoints:
 
 - `GET /health`
@@ -106,6 +110,8 @@ MVP endpoints:
 - `POST /api/scenarios/{id}/schedule`
 - `DELETE /api/scenarios/{id}/schedule`
 - `POST /api/scenarios/reset-all`
+- `GET /api/scenarios/{id}/report`
+- `GET /api/reports/faults/{faultId}`
 - `GET /api/hard`
 - `POST /api/hard/{id}`
 
@@ -119,6 +125,13 @@ Tier-1 scenarios:
 - `broken-downstream-call` -> `/api/fake/fulfillment/dispatch`
 - `simulated-db-timeout` -> `/api/fake/reports/month-end`
 - `bad-config-misleading-symptom` -> `/api/fake/recommendations/render`
+
+## Demo report flow
+
+1. Trigger a Tier-1 scenario from the control panel.
+2. Confirm `IncidentCompass delivery` shows a `faultId`.
+3. Click **Check report**. If the worker has not published yet, the report panel shows the normal `notReady` state.
+4. Click **Check report** again after the worker completes; the panel shows the latest published triage report summary, classification, confidence, recommended action, limitations, and evidence.
 
 ## Testing
 

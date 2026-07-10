@@ -503,3 +503,155 @@ pre {
     width: 100%;
   }
 }
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.panel-heading h3 {
+  margin-bottom: 0;
+}
+
+.report-state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  padding: 0.7rem 0.8rem;
+  color: #263342;
+  background: #f7fafc;
+}
+
+.report-state.pending {
+  border-color: #d99a2b;
+  background: #fff8e8;
+  color: #674300;
+}
+
+.report-state.danger {
+  border-color: #d88585;
+  background: #fff4f2;
+  color: #8b1e1e;
+}
+
+.report-checked {
+  margin-left: auto;
+  color: #647386;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.report-ready {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.report-ready-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  color: #647386;
+  font-size: 0.86rem;
+}
+
+.report-summary {
+  color: #1f2b3a;
+  font-size: 1rem;
+}
+
+.report-block {
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #d8dee6;
+}
+
+.report-block h4 {
+  margin: 0;
+  color: #526071;
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.report-block ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #1f2b3a;
+}
+
+.evidence-list {
+  display: grid;
+  gap: 0;
+}
+
+.evidence-item {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid #d8dee6;
+}
+
+.evidence-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.evidence-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #1f2b3a;
+}
+
+.evidence-head span,
+.evidence-reference {
+  color: #647386;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+blockquote {
+  margin: 0;
+  border-left: 3px solid #a8d3dd;
+  padding: 0.25rem 0 0.25rem 0.7rem;
+  color: #263342;
+}
+
+.evidence-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.evidence-payload {
+  max-height: 180px;
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 560px) {
+  .panel-heading,
+  .report-state,
+  .evidence-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .panel-heading button {
+    width: 100%;
+  }
+
+  .report-checked {
+    margin-left: 0;
+  }
+
+  .evidence-facts {
+    grid-template-columns: 1fr;
+  }
+}

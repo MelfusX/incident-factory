@@ -13,6 +13,10 @@ public sealed class IncidentCompassOptions
 
     public string IncidentsUrl => new Uri(new Uri(BaseUrl, UriKind.Absolute), IncidentsPath).ToString();
 
+    public string GetFaultLedgerPath(string faultId) => $"/api/v1/faults/{Uri.EscapeDataString(faultId)}/ledger";
+
+    public string GetTriageReportPath(string reportId) => $"/api/v1/triage-reports/{Uri.EscapeDataString(reportId)}";
+
     public static IncidentCompassOptions FromEnvironment()
     {
         return new IncidentCompassOptions

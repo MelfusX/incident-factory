@@ -2,6 +2,8 @@ import {
   Activity,
   AlertTriangle,
   CalendarClock,
+  CheckCircle2,
+  FileSearch,
   PauseCircle,
   Play,
   RefreshCw,
@@ -55,6 +57,51 @@ type DeliveryView = {
   error?: string;
   responsePreview?: string;
   deliveredAtUtc: string;
+};
+
+type ReportLookupStatus = 'noFault' | 'notReady' | 'ready';
+
+type ReportEvidence = {
+  id: string;
+  kind: string;
+  artifactId: string;
+  reference: string;
+  quote?: string | null;
+  score?: number | null;
+  artifactKind: string;
+  artifactDomainRef?: string | null;
+  artifactPayload?: unknown;
+};
+
+type TriageReport = {
+  id: string;
+  faultId: string;
+  status: string;
+  summary: string;
+  classification: string;
+  confidence: string;
+  isMassIssue?: boolean | null;
+  recommendedNextAction: string;
+  limitations: string[];
+  configHash: string;
+  createdAtUtc: string;
+  evidence: ReportEvidence[];
+};
+
+type ReportLookup = {
+  status: ReportLookupStatus;
+  faultId?: string;
+  reportId?: string;
+  message: string;
+  report?: TriageReport;
+};
+
+type ReportPanelState = {
+  phase: 'idle' | 'loading' | 'notReady' | 'ready' | 'error';
+  faultId?: string;
+  checkedAt?: string;
+  lookup?: ReportLookup;
+  error?: string;
 };
 
 type Scenario = {
@@ -114,6 +161,7 @@ export default function App() {
   const [busyActions, setBusyActions] = useState<string[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<ActionResult | null>(null);
+  const [reportStates, setReportStates] = useState<Record<string, ReportPanelState>>({});
 
   const selected = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedId) ?? scenarios[0],
@@ -150,9 +198,18 @@ export default function App() {
   const selectedScheduleDraft = selected
     ? scheduleDrafts[selected.id] ?? { intervalSeconds: '30', startInSeconds: '0' }
     : { intervalSeconds: '30', startInSeconds: '0' };
+  const selectedFaultId = selected?.lastDelivery?.faultId;
+  const selectedReportState = selected && selectedFaultId && reportStates[selected.id]?.faultId === selectedFaultId
+    ? reportStates[selected.id]
+    : undefined;
 
   async function triggerScenario(scenario: Scenario) {
     await runBusy(`trigger:${scenario.id}`, async () => {
+      setReportStates((current) => {
+        const next = { ...current };
+        delete next[scenario.id];
+        return next;
+      });
       const parameters = collectParameters(scenario, drafts[scenario.id]);
       await api(`/api/scenarios/${scenario.id}/trigger`, {
         method: 'POST',
@@ -184,6 +241,7 @@ export default function App() {
     await runBusy('reset-all', async () => {
       await api('/api/scenarios/reset-all', { method: 'POST' });
       setLastAction(null);
+      setReportStates({});
       await load();
     });
   }
@@ -208,6 +266,60 @@ export default function App() {
       await api(`/api/scenarios/${scenario.id}/schedule`, { method: 'DELETE' });
       await load();
     });
+  }
+
+  async function checkScenarioReport(scenario: Scenario) {
+    const faultId = scenario.lastDelivery?.faultId;
+    if (!faultId) {
+      setReportStates((current) => ({
+        ...current,
+        [scenario.id]: {
+          phase: 'notReady',
+          checkedAt: new Date().toISOString(),
+          lookup: {
+            status: 'noFault',
+            message: 'This scenario does not have a delivered IncidentCompass fault yet.'
+          }
+        }
+      }));
+      return;
+    }
+
+    const key = `report:${scenario.id}`;
+    setBusyActions((current) => current.includes(key) ? current : [...current, key]);
+    setReportStates((current) => ({
+      ...current,
+      [scenario.id]: {
+        phase: 'loading',
+        faultId,
+        checkedAt: new Date().toISOString()
+      }
+    }));
+
+    try {
+      const lookup = await api<ReportLookup>(`/api/scenarios/${scenario.id}/report`);
+      setReportStates((current) => ({
+        ...current,
+        [scenario.id]: {
+          phase: lookup.status === 'ready' ? 'ready' : 'notReady',
+          faultId,
+          checkedAt: new Date().toISOString(),
+          lookup
+        }
+      }));
+    } catch (error) {
+      setReportStates((current) => ({
+        ...current,
+        [scenario.id]: {
+          phase: 'error',
+          faultId,
+          checkedAt: new Date().toISOString(),
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }));
+    } finally {
+      setBusyActions((current) => current.filter((item) => item !== key));
+    }
   }
 
   async function runBusy(key: string, action: () => Promise<void>) {
@@ -486,6 +598,27 @@ export default function App() {
                 )}
               </section>
 
+              <section className="panel wide">
+                <div className="panel-heading">
+                  <h3>IncidentCompass report</h3>
+                  {selectedFaultId && (
+                    <button
+                      onClick={() => void checkScenarioReport(selected)}
+                      disabled={isBusy(`report:${selected.id}`)}
+                      title="Check report"
+                    >
+                      <FileSearch size={16} />
+                      Check report
+                    </button>
+                  )}
+                </div>
+                {selectedFaultId ? (
+                  <ReportViewer state={selectedReportState} faultId={selectedFaultId} />
+                ) : (
+                  <p className="empty">A delivered fault ID is required before report lookup.</p>
+                )}
+              </section>
+
               {lastAction && (
                 <section className="panel wide compact">
                   <h3>Last business response</h3>
@@ -518,6 +651,126 @@ function Fact({ label, value }: { label: string; value: string }) {
     <div>
       <dt>{label}</dt>
       <dd>{value}</dd>
+    </div>
+  );
+}
+
+function ReportViewer({ state, faultId }: { state?: ReportPanelState; faultId: string }) {
+  if (!state || state.phase === 'idle') {
+    return (
+      <div className="report-state neutral">
+        <FileSearch size={16} />
+        <span>Report lookup is ready for fault {shortId(faultId)}.</span>
+      </div>
+    );
+  }
+
+  const checked = state.checkedAt ? <span className="report-checked">Checked {formatDate(state.checkedAt)}</span> : null;
+
+  if (state.phase === 'loading') {
+    return (
+      <div className="report-state neutral">
+        <FileSearch size={16} />
+        <span>Checking IncidentCompass for a published report...</span>
+        {checked}
+      </div>
+    );
+  }
+
+  if (state.phase === 'error') {
+    return (
+      <div className="report-state danger">
+        <AlertTriangle size={16} />
+        <span>{state.error ?? 'Report lookup failed.'}</span>
+        {checked}
+      </div>
+    );
+  }
+
+  if (state.phase === 'notReady') {
+    return (
+      <div className="report-state pending">
+        <FileSearch size={16} />
+        <span>{state.lookup?.message ?? 'IncidentCompass is still running triage for this fault.'}</span>
+        {checked}
+      </div>
+    );
+  }
+
+  const report = state.lookup?.report;
+  if (!report) {
+    return (
+      <div className="report-state danger">
+        <AlertTriangle size={16} />
+        <span>Report lookup completed without report details.</span>
+        {checked}
+      </div>
+    );
+  }
+
+  return (
+    <div className="report-ready">
+      <div className="report-ready-head">
+        <span className="status-token ok"><CheckCircle2 size={15} />Report ready</span>
+        <span>{formatDate(report.createdAtUtc)}</span>
+      </div>
+
+      <p className="report-summary">{report.summary}</p>
+
+      <dl className="facts grid report-facts">
+        <Fact label="Report" value={shortId(report.id)} />
+        <Fact label="Status" value={report.status} />
+        <Fact label="Classification" value={report.classification} />
+        <Fact label="Confidence" value={report.confidence} />
+        <Fact label="Mass issue" value={report.isMassIssue == null ? 'unknown' : report.isMassIssue ? 'yes' : 'no'} />
+        <Fact label="Config" value={shortId(report.configHash)} />
+        <Fact label="Fault" value={shortId(report.faultId)} />
+        <Fact label="Evidence" value={report.evidence.length.toString()} />
+      </dl>
+
+      <div className="report-block">
+        <h4>Recommended next action</h4>
+        <p>{report.recommendedNextAction}</p>
+      </div>
+
+      <div className="report-block">
+        <h4>Limitations</h4>
+        {report.limitations.length > 0 ? (
+          <ul>
+            {report.limitations.map((limitation, index) => <li key={`${limitation}-${index}`}>{limitation}</li>)}
+          </ul>
+        ) : (
+          <p>none</p>
+        )}
+      </div>
+
+      <div className="report-block">
+        <h4>Evidence</h4>
+        {report.evidence.length > 0 ? (
+          <div className="evidence-list">
+            {report.evidence.map((evidence) => (
+              <article className="evidence-item" key={evidence.id}>
+                <div className="evidence-head">
+                  <strong>{evidence.kind}</strong>
+                  <span>{evidence.artifactKind}</span>
+                </div>
+                <div className="evidence-reference">{evidence.reference}</div>
+                {evidence.quote && <blockquote>{evidence.quote}</blockquote>}
+                <dl className="facts evidence-facts">
+                  <Fact label="Score" value={typeof evidence.score === 'number' ? evidence.score.toFixed(2) : 'n/a'} />
+                  <Fact label="Domain" value={evidence.artifactDomainRef ?? 'n/a'} />
+                  <Fact label="Artifact" value={shortId(evidence.artifactId)} />
+                </dl>
+                {evidence.artifactPayload !== undefined && (
+                  <pre className="evidence-payload">{stringifyPayload(evidence.artifactPayload)}</pre>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p>none</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -618,6 +871,18 @@ function formatDate(value: string) {
 
 function shortRunId(runId: string) {
   return runId.length > 18 ? `${runId.slice(0, 18)}...` : runId;
+}
+
+function shortId(value: string) {
+  return value.length > 18 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+}
+
+function stringifyPayload(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 

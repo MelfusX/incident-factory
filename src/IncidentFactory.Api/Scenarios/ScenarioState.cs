@@ -41,6 +41,21 @@ public sealed class ScenarioState
         }
     }
 
+    public bool TryGetLastFaultId(string scenarioId, out string? faultId)
+    {
+        lock (_gate)
+        {
+            if (!_definitions.ContainsKey(scenarioId) || !_runtime.TryGetValue(scenarioId, out var runtime))
+            {
+                faultId = null;
+                return false;
+            }
+
+            faultId = runtime.LastDelivery?.FaultId;
+            return true;
+        }
+    }
+
     public bool IsEnabled(string scenarioId)
     {
         lock (_gate)

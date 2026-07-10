@@ -34,6 +34,12 @@ builder.Services.AddHttpClient<IIncidentCompassClient, IncidentCompassClient>((s
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(15);
 });
+builder.Services.AddHttpClient<IIncidentCompassReportClient, IncidentCompassReportClient>((services, client) =>
+{
+    var options = services.GetRequiredService<IncidentCompassOptions>();
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 
 var app = builder.Build();
 
@@ -62,6 +68,8 @@ app.MapGet("/api/runtime", (IncidentCompassOptions options) => Results.Ok(new
 }));
 
 app.MapScenarioControlEndpoints();
+app.MapScenarioReportEndpoint();
+app.MapIncidentCompassReportEndpoints();
 app.MapScenarioBusinessEndpoints();
 app.MapHardScenarioBusinessEndpoints();
 
